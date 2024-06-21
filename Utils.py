@@ -81,7 +81,7 @@ def split_dataset_casia_wf(base_folder, validation_percentage, num_identificatio
 
 
 
-def slplit_dataset_digi_face(base_folder, validation_percentage, num_identification_imgs):
+def split_dataset_digi_face(base_folder, validation_percentage, num_identification_imgs):
     """
     Split dataset into training and validation sets for a specific folder structure.
 

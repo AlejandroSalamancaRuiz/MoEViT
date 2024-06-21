@@ -117,7 +117,7 @@ eval_interval = 4
 val_steps = 4
 
 # Optimization hyperparameters following GPT3 paper
-max_lr = 6e-4
+max_lr = 3e-4
 min_lr = max_lr * 0.1
 warmup_steps = 715
 max_steps = 19073 
