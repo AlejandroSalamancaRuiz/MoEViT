@@ -1,15 +1,16 @@
 import torch
 import torch.nn.functional as F
 import os
-from Utils import rank_acc, create_unseen_embds, get_lr
+from Training_Utils import rank_acc, create_unseen_embds, get_lr
 import argparse
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 from MoEViT import MoEViT, MoEViTConfig
 import time
-from Utils import create_data_loader
 import sys
+import config
+from Data_Utils import CustomDataLoader
 
 # -----------------------------------------------------------------------------
 # simple launch:
@@ -17,8 +18,6 @@ import sys
 # DDP launch for e.g. 8 GPUs:
 # torchrun --standalone --nproc_per_node=8 train.py
 # -----------------------------------------------------------------------------
-
-
 
 # -----------------------------------------------------------------------------
 #                               DDP configuration
@@ -113,28 +112,29 @@ raw_model = model.module if ddp else model # always contains the "raw" unwrapped
 #                             Training configuration
 # -----------------------------------------------------------------------------
 
-eval_interval = 4
-val_steps = 4
+eval_interval = config.eval_interval
+val_steps = config.val_steps
 
 # Optimization hyperparameters following GPT3 paper
-max_lr = 3e-4
-min_lr = max_lr * 0.1
-warmup_steps = 715
-max_steps = 19073 
-weight_decay = 0.1
+max_lr = config.max_lr
+min_lr = config.min_lr
+warmup_steps = config.warmup_steps
+max_steps = config.max_steps
+weight_decay = config.weight_decay
 
 # Batch Size in tokens following GPT3 paper specs should be 0.5M
-total_batch_size = 524288 # 2**19
-B = 16 # micro batch size. Increase or decrease depending on GPU memory!!
+total_batch_size = config.total_batch_size
+B = config.B
 T = model_config.block_size
 assert total_batch_size % (B * T * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
 
 grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 
 # Create Data Loaders
-train_loader = create_data_loader('data/data_t/train', model_config.img_dim, B)
-val_loader = create_data_loader('data/data_t/validation', model_config.img_dim, B)
-id_imgs_loader = create_data_loader('data/casia-web-face-dataset/identification_imgs', model_config.img_dim, B)
+train_loader = CustomDataLoader(B, os.path.join(config.shards_folder, 'train'), process_rank=ddp_rank, num_processes=ddp_world_size)
+val_loader = CustomDataLoader(B, os.path.join(config.shards_folder, 'validation'), process_rank=ddp_rank, num_processes=ddp_world_size)
+id_imgs_loader = CustomDataLoader(B, os.path.join(config.shards_folder, 'identification_imgs'), process_rank=ddp_rank, num_processes=ddp_world_size)
+
 
 if master_process:
     print(' ---------- Data Loaders ----------')
@@ -181,7 +181,7 @@ for step in range(max_steps):
 
     for micro_step in range(grad_accum_steps):
 
-        images, labels = next(iter(train_loader))
+        images, labels = train_loader.next_batch()
         # Move the images and labels to the device
         images = images.to(device)
         labels = labels.to(device)
@@ -241,7 +241,7 @@ for step in range(max_steps):
 
             for _ in range(val_steps):
 
-                images, labels = next(iter(val_loader))
+                images, labels = val_loader.next_batch()
                 # Move the images and labels to the device
                 images = images.to(device)
                 labels = labels.to(device)

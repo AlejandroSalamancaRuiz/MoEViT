@@ -35,7 +35,6 @@ class MoEViTConfig:
     device: str = 'cpu'
 
 
-
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-6):
         super().__init__()

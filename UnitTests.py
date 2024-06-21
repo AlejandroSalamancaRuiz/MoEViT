@@ -1,6 +1,6 @@
 import torch
 import unittest
-from Utils import rank_acc, create_unseen_embds
+from Training_Utils import rank_acc, create_unseen_embds
 from MoEViT import cos_face_loss
 import torch.nn as nn
 import math
