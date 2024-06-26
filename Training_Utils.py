@@ -6,14 +6,18 @@ from torchvision import transforms
 import os
 import math
 
-def create_unseen_embds(model, id_imgs_loader, device):
+def create_unseen_embds(model, id_imgs_loader, steps, device):
 
     model.to(device)
     embd_cpu, labels_cpu = None, None
     start = True
 
-    for images, labels in id_imgs_loader:
-        images, labels = images.to(device), labels.to(device)
+    for _ in range(steps):
+
+        images, labels = id_imgs_loader.next_batch()
+        images = images.to(device)
+        labels = labels.to(device)
+
         logits, embeddings, loss = model(images, labels)
 
         if start:

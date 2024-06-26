@@ -139,7 +139,7 @@ id_imgs_loader = CustomDataLoader(B, os.path.join(config.shards_folder, 'identif
 if master_process:
     print(' ---------- Data Loaders ----------')
     for name, loader in [('Train',train_loader), ('Val', val_loader), ('Identification', id_imgs_loader)]:
-        print(f"{name} data loader size: {len(loader)} , batch_size: {loader.batch_size}")
+        print(f"{name} -- shards in data loader: {len(loader.shards)} , batch_size: {loader.B}")
     print(' ---------- -------------- ----------')
     print(' ---------- -------------- ----------')
     print(' ---------- Configurations ----------')
@@ -179,6 +179,7 @@ for step in range(max_steps):
     loss_accum, loss_accum1 = 0.0, 0.0
     t0 = time.time()
 
+
     for micro_step in range(grad_accum_steps):
 
         images, labels = train_loader.next_batch()
@@ -186,21 +187,21 @@ for step in range(max_steps):
         images = images.to(device)
         labels = labels.to(device)
 
+        if ddp:
+            model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
+    
         with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
             logits, embeddings, loss = model(images, labels)
-        
+
         # Sanity check
         #loss_softm = F.cross_entropy(logits, labels) / grad_accum_steps 
         #loss_accum_sftm += loss_softm.detach()
 
         loss = loss / grad_accum_steps
         loss_accum += loss.detach()
-        
-        if ddp:
-            model.require_backward_grad_sync = (micro_step == grad_accum_steps - 1)
-
         loss.backward()
 
+        
     if ddp:
         dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
         
@@ -213,12 +214,13 @@ for step in range(max_steps):
         param_group['lr'] = lr
     optimizer.step()
 
-    torch.cuda.synchronize() # wait for the GPU to finish work
+    if device_type == "cuda":
+        torch.cuda.synchronize() # wait for the GPU to finish work
 
     t1 = time.time()
     dt = t1 - t0 # time difference in seconds
 
-    images_processed = train_loader.batch_size * grad_accum_steps * ddp_world_size
+    images_processed = train_loader.B * grad_accum_steps * ddp_world_size
     images_per_sec = images_processed / dt
 
     if master_process:
@@ -236,7 +238,7 @@ for step in range(max_steps):
 
         with torch.no_grad():
             val_loss_accum = 0.0
-            embd_cpu, labels_cpu = create_unseen_embds(model, id_imgs_loader, device)
+            embd_cpu, labels_cpu = create_unseen_embds(model, id_imgs_loader, config.id_eval_steps, device)
             rank_1 , rank_5  = rank_acc(embd_cpu, labels_cpu)
 
             for _ in range(val_steps):

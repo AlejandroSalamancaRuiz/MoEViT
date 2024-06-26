@@ -27,7 +27,7 @@ class MoEViTConfig:
     norm_eps: float = 1e-6
     
     img_embd: int = 768
-    num_classes: int = 10000
+    num_classes: int = 10600
 
     s: int = 64
     m: float = 0.35
@@ -137,6 +137,10 @@ class MoEViT(nn.Module):
 
     def forward(self, img_batch, targets=None):
 
+        # Check if targets are within the valid range
+        assert torch.all(targets >= 0), 'targets positive'
+        assert torch.all(targets < self.config.num_classes), "Targets out of range"
+        
         tok_emb = self.transformer.te(img_batch) 
 
         b, ch, w, h = tok_emb.size()
@@ -146,11 +150,12 @@ class MoEViT(nn.Module):
         tok_emb = torch.swapaxes(tok_emb, 1,2)
         clf_tok = torch.ones((b,1,tok_emb.shape[2]), device=self.config.device)
         tok_emb = torch.cat((clf_tok, tok_emb), dim=1) 
-   
+
         x = self.transformer.drop(tok_emb)
 
         for block in self.transformer.h:
             x = block(x, self.freqs_complex)
+
 
         x = self.transformer.norm_l(x)
 
@@ -161,6 +166,7 @@ class MoEViT(nn.Module):
 
         if targets is not None:
             loss = cos_face_loss(img_embds, self.clf_head.weight, self.config.s, self.config.m, targets, self.config.device)
+
         else: loss=None
         
         return logits, img_embds, loss
@@ -205,13 +211,16 @@ def cos_face_loss(X, W, s, m, y, device):
     # Compute cosine similarity
     cos_vals = (W_n @ X_n.T).T
 
+
     # Create masks
-    mask = F.one_hot(y, num_classes=W.shape[0]).to(device).float()
+    mask = F.one_hot(y, num_classes=W.shape[0]).to(device=device, dtype=cos_vals.dtype)
     reversed_mask = 1.0 - mask
+
 
     # Exponential terms for softmax
     exp_logits = torch.exp(s * cos_vals) * reversed_mask
     exp_logits_m = torch.exp(s * (cos_vals - m)) * mask
+
 
     numerator = torch.sum(exp_logits_m, dim=1)
     denominator = torch.sum(exp_logits, dim=1) + numerator

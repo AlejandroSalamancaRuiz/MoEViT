@@ -312,8 +312,5 @@ def count_files_in_directory(directory_path):
         file_count += len(files)
     return file_count
 
-# Example usage
-directory_path = 'data_unzip'
-number_of_files = count_files_in_directory(directory_path)
-print(f"Number of files in '{directory_path}' and its subdirectories: {number_of_files}")
+
 

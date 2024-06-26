@@ -40,7 +40,7 @@ num_id_imgs_shards = 1
 # Changes need to be done in MoEViTConfig class in MoEViT.py
 
 eval_interval = 1000
-val_steps = 4
+val_steps = 50
 
 # Optimization hyperparameters following GPT3 paper
 max_lr = 3e-4
@@ -52,3 +52,5 @@ weight_decay = 0.1
 # Batch Size in tokens following GPT3 paper specs should be 0.5M
 total_batch_size = 524288 # 2**19
 B = 16 # micro batch size. Increase or decrease depending on GPU memory!!
+
+id_eval_steps = int(num_identification_imgs / B)
