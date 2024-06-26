@@ -133,7 +133,8 @@ grad_accum_steps = total_batch_size // (B * T * ddp_world_size)
 # Create Data Loaders
 train_loader = CustomDataLoader(B, os.path.join(config.shards_folder, 'train'), process_rank=ddp_rank, num_processes=ddp_world_size)
 val_loader = CustomDataLoader(B, os.path.join(config.shards_folder, 'validation'), process_rank=ddp_rank, num_processes=ddp_world_size)
-id_imgs_loader = CustomDataLoader(B, os.path.join(config.shards_folder, 'identification_imgs'), process_rank=ddp_rank, num_processes=ddp_world_size)
+# create id_imgs_loader just for master
+id_imgs_loader = CustomDataLoader(B, os.path.join(config.shards_folder, 'identification_imgs'), process_rank=0, num_processes=1)
 
 
 if master_process:
@@ -238,8 +239,10 @@ for step in range(max_steps):
 
         with torch.no_grad():
             val_loss_accum = 0.0
-            embd_cpu, labels_cpu = create_unseen_embds(model, id_imgs_loader, config.id_eval_steps, device)
-            rank_1 , rank_5  = rank_acc(embd_cpu, labels_cpu)
+
+            if master_process:
+                embd_cpu, labels_cpu = create_unseen_embds(model, id_imgs_loader, config.id_eval_steps, device)
+                rank_1 , rank_5  = rank_acc(embd_cpu, labels_cpu)
 
             for _ in range(val_steps):
 

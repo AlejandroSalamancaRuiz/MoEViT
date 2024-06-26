@@ -7,7 +7,7 @@
 # Change to True if train, val and id_imgs folders need to be created
 create_train_val_idimgs_folders = False 
 original_data_folder = 'casia-web-face-dataset'
-validation_percentage = 0.15, 
+validation_percentage = 0.05, 
 num_identification_imgs = 500
 
 # -----------------------------------------------------------------------------
